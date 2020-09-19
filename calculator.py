@@ -36,7 +36,7 @@ class Calculator:
         Takes a cleaned expression and evaluates it.
         Currently supports only addition and subtraction.
 
-        :param expression: A string expression cleaned by self.clean_input
+        :param expression: A clean string expression with no subtraction.
         :return: (int) The result of the evaluation.
         """
         # first, convert all subtraction to the addition of negative numbers
