@@ -1,3 +1,6 @@
+import re
+
+
 class Calculator:
     commands = {
         'help': 'This application reads a one-line expression and outputs the '
@@ -7,6 +10,7 @@ class Calculator:
                 'Please separate numbers from operators using at least one '
                 'space.'
     }
+    expression_regex = r'[+-]?([0-9]+)( [+-] [0-9]+)*'
 
     def __init__(self):
         pass
@@ -16,33 +20,76 @@ class Calculator:
         while True:
             user_input = input().strip()
 
-            # commands
+            # blank input
             if len(user_input) == 0:
                 continue
-            elif user_input == '/exit':
-                print('Bye!')
-                break
-            elif user_input[1:] in self.commands:
-                print(self.commands[user_input[1:]])
-                continue
+
+            # commands
+            elif user_input.startswith('/'):
+                try:
+                    result = self.do_command(user_input[1:])
+                    if result is None:  # exit command
+                        print('Bye!')
+                        break
+                    else:
+                        print(result)
+                except KeyError:
+                    print('Unknown command')
 
             # operations
             else:
-                clean_expression = self.clean_input(user_input)
-                print(self.evaluate(clean_expression))
+                # collapse repeating operators
+                expression = self.collapse(user_input)
 
-    def evaluate(self, expression: str):
+                # check to be sure it matches regex
+                if self.is_valid_expression(expression):
+
+                    # convert subtraction to addition of negative numbers
+                    addition_problem = self.sub_to_add(expression)
+
+                    try:
+                        result = self.evaluate(addition_problem)
+                        print(result)
+                    except ValueError:
+                        print('Invalid expression (ValueError)')
+                else:
+                    print('Invalid expression')
+
+    def do_command(self, command: str):
+        """
+        Returns the given command.
+        Returns None if the command is 'exit'.
+        """
+        if command == 'exit':
+            return None
+        else:
+            return self.commands[command]
+
+    def is_valid_expression(self, expression: str):
+        """
+        To be used on an expression which has been collapsed, but still may have
+        subtraction and spaces.
+
+        :param expression: The given clean expression.
+        :return: (bool) True if the expression matches the regex, False
+            otherwise.
+        """
+        return re.fullmatch(self.expression_regex, expression)
+
+    @staticmethod
+    def evaluate(addition_problem: str):
         """
         Takes a cleaned expression and evaluates it.
         Currently supports only addition and subtraction.
 
-        :param expression: A clean string expression with no subtraction.
+        :param addition_problem: A clean string expression with no subtraction.
         :return: (int) The result of the evaluation.
         """
-        # first, convert all subtraction to the addition of negative numbers
-        addition_problem = self.sub_to_add(expression)
+        # remove leading + if necessary
+        if addition_problem[0] == '+':
+            addition_problem = addition_problem[1:]
 
-        # then, split up the terms and add them
+        # split up the terms and add them
         if addition_problem.find('+') != -1:  # isn't just one number
             terms = [int(x) for x in addition_problem.split('+')]
         else:
@@ -56,33 +103,35 @@ class Calculator:
     def sub_to_add(expression: str):
         """
         Converts all subtraction in an expression to the addition of negative
-        numbers:
+        numbers. Also removes spaces.
 
-        Ex: '-4+13-9' --> '-4+13+-9'
+        Ex: '-4 + 13 - 9' --> '-4+13+-9'
 
         :param expression: An expression cleaned via self.clean_input.
         :return: (str) Expression with subtraction converted to negative
-            numbers.
+            numbers and spaces removed.
         """
-        if expression[0] == '-':
-            lst = expression[1:].split('-')
-            string_to_evaluate = '-' + '+-'.join(lst)
-        else:
-            lst = expression.split('-')
-            string_to_evaluate = '+-'.join(lst)
+        no_spaces = ''.join(expression.split())
 
-        return string_to_evaluate
+        if no_spaces[0] == '-':
+            lst = no_spaces[1:].split('-')
+            s = '-' + '+-'.join(lst)
+        else:
+            lst = no_spaces.split('-')
+            s = '+-'.join(lst)
+
+        return s
 
     @staticmethod
-    def clean_input(expression: str):
+    def collapse(expression: str):
         """
         "Cleans" an input expression by collapsing repeated operators (e.g '+++'
         becomes '+', '---' becomes '-', and '--' becomes '+'.
         Ensures that expressions like '2 - -3' collapse to '2+3'.
 
         :param expression: Raw user-input expression.
-        :return: (str) Cleaned expression—no repeating operators and no spaces
-            between elements.
+        :return: (str) Cleaned expression---no repeating operators, elements
+            space-separated.
         """
         symbols = expression.split()
         for i in range(len(symbols)):
@@ -104,7 +153,7 @@ class Calculator:
                 symbols[i] = '+'
                 symbols[i+1] = symbols[i+1][1:]
 
-        return ''.join(symbols)
+        return ' '.join(symbols)
 
 
 if __name__ == '__main__':
