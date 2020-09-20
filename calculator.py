@@ -1,4 +1,5 @@
 import re
+from string import ascii_letters
 
 
 class Calculator:
@@ -13,7 +14,7 @@ class Calculator:
     expression_regex = r'[+-]?([0-9]+)( [+-] [0-9]+)*'
 
     def __init__(self):
-        pass
+        self.variables = {}
 
     def run(self):
         """Main application loop for the smart calculator."""
@@ -36,24 +37,94 @@ class Calculator:
                 except KeyError:
                     print('Unknown command')
 
+            # variable declaration
+            elif '=' in user_input:
+                arguments = [s.strip() for s in user_input.split('=')]
+                if len(arguments) != 2:
+                    print('Invalid assignment')
+                else:
+                    if not self.is_valid_varname(arguments[0]):
+                        print('Invalid identifier')
+                    elif not self.is_declared_var(arguments[1]):
+                        print('Invalid assignment')
+                    else:
+                        self.variables[arguments[0]] = arguments[1]
+
             # operations
             else:
                 # collapse repeating operators
                 expression = self.collapse(user_input)
 
-                # check to be sure it matches regex
-                if self.is_valid_expression(expression):
-
-                    # convert subtraction to addition of negative numbers
-                    addition_problem = self.sub_to_add(expression)
-
-                    try:
-                        result = self.evaluate(addition_problem)
-                        print(result)
-                    except ValueError:
-                        print('Invalid expression (ValueError)')
+                # plug in variables
+                try:
+                    expression = self.plug_and_chug(expression)
+                except KeyError:
+                    print('Unknown variable')
                 else:
-                    print('Invalid expression')
+
+                    # check to be sure it matches regex
+                    if self.is_valid_expression(expression):
+
+                        # convert subtraction to addition of negative numbers
+                        addition_problem = self.sub_to_add(expression)
+
+                        try:
+                            result = self.evaluate(addition_problem)
+                            print(result)
+                        except ValueError:
+                            print('Invalid expression (ValueError)')
+                    else:
+                        print('Invalid expression')
+
+    def plug_and_chug(self, expression: str):
+        """
+        Accepts an expression collapsed by self.collapse() but not yet converted
+        by self.sub_to_add(). Reads through the expression for variable names
+        and plugs in appropriate values until the expression contains no Latin
+        letters.
+        """
+        new_exp = expression
+        has_letters = any(symbol in ascii_letters for symbol in new_exp)
+
+        while has_letters:
+            elements = new_exp.split()
+
+            for i in range(len(elements)):
+                if any(c in ascii_letters for c in elements[i]):
+                    elements[i] = str(self.variables[elements[i]])
+
+            new_exp = ' '.join(elements)
+            has_letters = any(symbol in ascii_letters for symbol in new_exp)
+
+        return new_exp
+
+    def is_declared_var(self, name: str):
+        """Checks to see whether a given variable has been declared.
+
+        Also returns True if 'name' is an integer."""
+        try:
+            int(name)
+        except ValueError:
+            pass
+        else:
+            return True
+
+        try:
+            self.variables[name]
+        except KeyError:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def is_valid_varname(name: str):
+        """True if the proposed variable name is valid (uses only Latin letters,
+        False otherwise."""
+        for c in name:
+            if c not in ascii_letters:
+                return False
+
+        return True
 
     def do_command(self, command: str):
         """
@@ -127,7 +198,7 @@ class Calculator:
         """
         "Cleans" an input expression by collapsing repeated operators (e.g '+++'
         becomes '+', '---' becomes '-', and '--' becomes '+'.
-        Ensures that expressions like '2 - -3' collapse to '2+3'.
+        Ensures that expressions like '2 - -3' collapse to '2 + 3'.
 
         :param expression: Raw user-input expression.
         :return: (str) Cleaned expression---no repeating operators, elements
